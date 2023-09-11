@@ -1,0 +1,5 @@
+# Harmonic cavity parameters
+harmonic   3
+n_cavities    3
+Rs    1.768e10
+Q    2e8

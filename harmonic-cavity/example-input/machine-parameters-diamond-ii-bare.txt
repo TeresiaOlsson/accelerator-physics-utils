@@ -1,0 +1,9 @@
+# Machine parameters
+energy  3.5e9
+circumference   560.560944
+harm_num    934
+mom_comp    1.041712e-04
+rf_voltage  1.42e6
+energy_loss    723.4663e3
+energy_spread    9.355127e-04
+current 300e-3

@@ -1,0 +1,27 @@
+# Parameters to calculate cavity settings
+#
+# Machine parameters
+rf_freq    499510634.4542388
+harm_num   934
+current    300e-3
+energy    3.5e9
+energy_loss    723.4663e6
+mom_comp    1.041712e-04
+energy_spread    9.355127e-04
+#
+# Main cavity parameters
+num_main_cav    8
+main_cav_voltage    1.42e6
+main_cav_Q   33000
+main_cav_beta    optimal
+main_cavity_detuning    optimal
+#
+# Harmonic cavity parameters
+harm_cav_harmonic   3
+num_harm_cav    3
+harm_cav_R    1.768e10
+harm_cav_Q    2e8
+harm_cav_voltage    401.827e3
+harm_cav_phi    -0.3597
+harm_cav_beta    optimal
+harm_cav_detuning    optimal    
