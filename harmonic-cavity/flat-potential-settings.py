@@ -10,6 +10,7 @@ import sys, os
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.constants import speed_of_light
+from scipy import optimize
 
 # Import local modules
 sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
@@ -53,7 +54,6 @@ time_nat, potential_nat = potential(machine_data.mom_comp, rf_freq, machine_data
 profile_nat = bunch_profile(time_nat, potential_nat, machine_data.mom_comp, machine_data.energy_spread)
 
 # Center and bunch length
-
 center_nat, bunch_length_nat = bunch_length_rms(time_nat, profile_nat)
 
 print("Natural synchronous phase: %5.5f rad/%5.5f degree" % (synchronous_phase_nat, synchronous_phase_nat/np.pi*180))
@@ -75,7 +75,7 @@ print("Harmonic phase: %5.5f rad/%5.5f degree" % (harm_cav_phase_FP-np.pi/2, (ha
 print("Synchronous phase: %5.5f rad/%5.5f degree\n" % (synchronous_phase_FP-np.pi/2, (synchronous_phase_FP-np.pi/2)/np.pi*180))
 
 # RF potential and longitudinal bunch profile
-time_FP,potential_FP = potential(machine_data.mom_comp, rf_freq,machine_data.energy, revolution_time, machine_data.rf_voltage, synchronous_phase_FP, harm_cav_data.harmonic,k_FP*machine_data.rf_voltage,harm_cav_phase_FP)
+time_FP,potential_FP = potential(machine_data.mom_comp, rf_freq, machine_data.energy, revolution_time, machine_data.rf_voltage, synchronous_phase_FP, harm_cav_data.harmonic,k_FP*machine_data.rf_voltage,harm_cav_phase_FP)
 profile_FP = bunch_profile(time_FP, potential_FP, machine_data.mom_comp, machine_data.energy_spread)
 
 # Center and bunch length
@@ -99,115 +99,115 @@ print("Detuning: %5.5f kHz\n" % (harm_cav_detuning_FP*1e-3))
 #%% ========================== Find scalar solution ==============================
 # Find the equilibrium distribution assuming a scalar form factor
 
-# def scalar_penalty_function(F_initial,R,psi_h,I,n,Vrf,U0,alpha_c,frf,E0,T0,sigma_e):
+def scalar_penalty_function(F_initial,R,psi_h,I,n,Vrf,U0,alpha_c,frf,E0,T0,sigma_e):
         
-#      # Calculate harmonic voltage
-#      phi_h = psi_h + np.pi/2
-#      VHC = -2*F_initial*R*I*np.cos(psi_h)
-#      k = VHC/Vrf
-#      phi_s = np.pi - np.arcsin(U0/Vrf - k*np.sin(phi_h))
+      # Calculate harmonic voltage
+      phi_h = psi_h + np.pi/2
+      VHC = -2*F_initial*R*I*np.cos(psi_h)
+      k = VHC/Vrf
+      phi_s = np.pi - np.arcsin(U0/Vrf - k*np.sin(phi_h))
     
-#      # print(VHC)
-#      # print(phi_h)
-#      # print(phi_s)
+      # print(VHC)
+      # print(phi_h)
+      # print(phi_s)
+
+      # Calculate potential
+      time,pot = potential(alpha_c,frf,E0,T0,Vrf,phi_s,n,VHC,phi_h)
     
-#      # Calculate potential
-#      time,pot = potential(alpha_c,frf,E0,T0,Vrf,phi_s,n,VHC,phi_h)
+      # Calculate bunch profile
+      profile = bunch_profile(time,pot,alpha_c,sigma_e)
     
-#      # Calculate bunch profile
-#      profile = bunch_profile(time,pot,alpha_c,sigma_e)
+      # Calculate form factor
+      F_new = np.absolute(form_factor(time,profile,n,frf))
+          
+      penalty = F_initial-F_new
     
-#      # Calculate form factor
-#      F_new = np.absolute(form_factor(time,profile,n,frf))
-    
-#      penalty = F_initial-F_new
-    
-#      return penalty
+      return penalty
+  
 
-# fres = detuning + n*frf
-# psi_h = np.arctan2(2*Q*detuning,fres) - np.pi # Subtracting -pi necessary to get the angle in the third quadrant
+harm_cav_resonance_freq = harm_cav_data.detuning + harm_cav_data.harmonic*rf_freq
+harm_cav_tuning_angle = np.arctan2(2*harm_cav_data.Q*harm_cav_data.detuning,harm_cav_resonance_freq) - np.pi # Subtracting -pi necessary to get the angle in the third quadrant
 
-# scalar_penalty = lambda F: scalar_penalty_function(F,R,psi_h,I,n,Vrf,U0,alpha_c,frf,E0,T0,sigma_e)
-# F_scalar = optimize.brentq(scalar_penalty, 0, 1)
+scalar_penalty = lambda F: scalar_penalty_function(F,harm_cav_data.Rs*harm_cav_data.n_cavities,harm_cav_tuning_angle,machine_data.current,harm_cav_data.harmonic,machine_data.rf_voltage,machine_data.energy_loss,machine_data.mom_comp,rf_freq,machine_data.energy,revolution_time,machine_data.energy_spread)
+F_scalar = optimize.brentq(scalar_penalty, 0, 1)
 
-# phi_h = psi_h + np.pi/2
-# VHC = -2*F_scalar*R*I*np.cos(psi_h)
-# k = VHC/Vrf
-# phi_s = np.pi - np.arcsin(U0/Vrf - k*np.sin(phi_h))
+harm_cav_phase = harm_cav_tuning_angle + np.pi/2
+harm_cav_voltage = -2*F_scalar*harm_cav_data.Rs*harm_cav_data.n_cavities*machine_data.current*np.cos(harm_cav_tuning_angle)
+k = harm_cav_voltage/machine_data.rf_voltage
+synchronous_phase = np.pi - np.arcsin(machine_data.energy_loss/machine_data.rf_voltage - k*np.sin(harm_cav_phase))
 
-# print("Scalar solution:\n")
-# print("Harmonic voltage: %5.5f keV" % (k*Vrf*1e-3))
-# print("Harmonic phase: %5.5f rad/%5.5f degree" % (phi_h, phi_h/np.pi*180))
-# print("Tuning angle: %5.5f rad/%5.5f degree" % (psi_h, psi_h/np.pi*180))
-# print("Synchronous phase: %5.15f rad/%5.15f degree\n" % (phi_s, phi_s/np.pi*180))
+print("Scalar solution:\n")
+print("Harmonic voltage: %5.5f keV" % (k*machine_data.rf_voltage*1e-3))
+print("Harmonic phase: %5.5f rad/%5.5f degree" % (harm_cav_phase, harm_cav_phase/np.pi*180))
+print("Tuning angle: %5.5f rad/%5.5f degree" % (harm_cav_tuning_angle, harm_cav_tuning_angle/np.pi*180))
+print("Synchronous phase: %5.15f rad/%5.15f degree\n" % (synchronous_phase, synchronous_phase/np.pi*180))
 
-# time_scalar,pot_scalar = potential(alpha_c,frf,E0,T0,Vrf,phi_s,n,k*Vrf,phi_h)
-# profile_scalar = bunch_profile(time_scalar,pot_scalar,alpha_c,sigma_e)
-# center_scalar,bunch_length_scalar = bunch_length_rms(time_scalar,profile_scalar)
+time_scalar,pot_scalar = potential(machine_data.mom_comp,rf_freq,machine_data.energy,revolution_time,machine_data.rf_voltage,synchronous_phase,harm_cav_data.harmonic,k*machine_data.rf_voltage,harm_cav_phase)
+profile_scalar = bunch_profile(time_scalar,pot_scalar,machine_data.mom_comp,machine_data.energy_spread)
+center_scalar,bunch_length_scalar = bunch_length_rms(time_scalar,profile_scalar)
 
-# print("Bunch length: %5.5f ps/%5.5f mm" % (bunch_length_scalar*1e12,bunch_length_scalar*c*1e3))
-# print("Form factor amplitude: %5.5f\n" % (F_scalar))
+print("Bunch length: %5.5f ps/%5.5f mm" % (bunch_length_scalar*1e12,bunch_length_scalar*speed_of_light*1e3))
+print("Form factor amplitude: %5.5f\n" % (F_scalar))
 
 #%% ========================== Find complex solution ==============================
 # Find the equilibrium distribution assuming a complex form factor
 
-# def complex_penalty_function(F_array,R,psi_h,I,n,Vrf,U0,alpha_c,frf,E0,T0,sigma_e):
+def complex_penalty_function(F_array,R,psi_h,I,n,Vrf,U0,alpha_c,frf,E0,T0,sigma_e):
     
-#     F_initial = F_array[0] + 1j*F_array[1]
+    F_initial = F_array[0] + 1j*F_array[1]
                 
-#     # Calculate harmonic voltage
-#     phi_h = psi_h + np.pi/2 + np.angle(F_initial)
-#     VHC = -2*np.absolute(F_initial)*R*I*np.cos(psi_h)
-#     k = VHC/Vrf
-#     phi_s = np.pi - np.arcsin(U0/Vrf - k*np.sin(phi_h))
+    # Calculate harmonic voltage
+    phi_h = psi_h + np.pi/2 + np.angle(F_initial)
+    VHC = -2*np.absolute(F_initial)*R*I*np.cos(psi_h)
+    k = VHC/Vrf
+    phi_s = np.pi - np.arcsin(U0/Vrf - k*np.sin(phi_h))
         
-#     # Calculate potential
-#     time,pot = potential(alpha_c,frf,E0,T0,Vrf,phi_s,n,VHC,phi_h)
+    # Calculate potential
+    time,pot = potential(alpha_c,frf,E0,T0,Vrf,phi_s,n,VHC,phi_h)
     
-#     # Calculate bunch profile
-#     profile = bunch_profile(time,pot,alpha_c,sigma_e)
+    # Calculate bunch profile
+    profile = bunch_profile(time,pot,alpha_c,sigma_e)
     
-#     # Calculate form factor
-#     F_new = form_factor(time,profile,n,frf)
+    # Calculate form factor
+    F_new = form_factor(time,profile,n,frf)
     
-#     penalty = np.absolute(F_initial-F_new)
+    penalty = np.absolute(F_initial-F_new)
     
-#     return penalty
+    return penalty
 
+harm_cav_resonance_freq = harm_cav_data.detuning + harm_cav_data.harmonic*rf_freq
+harm_cav_tuning_angle = np.arctan2(2*harm_cav_data.Q*harm_cav_data.detuning,harm_cav_resonance_freq) - np.pi # Subtracting -pi necessary to get the angle in the third quadrant
 
-# fres = detuning + n*frf
-# psi_h = np.arctan2(2*Q*detuning,fres) - np.pi # Subtracting -pi necessary to get the angle in the third quadrant
+complex_penalty = lambda F_array: complex_penalty_function(F_array,harm_cav_data.Rs*harm_cav_data.n_cavities,harm_cav_tuning_angle,machine_data.current,harm_cav_data.harmonic,machine_data.rf_voltage,machine_data.energy_loss,machine_data.mom_comp,rf_freq,machine_data.energy,revolution_time,machine_data.energy_spread)
 
-# complex_penalty = lambda F_array: complex_penalty_function(F_array,R,psi_h,I,n,Vrf,U0,alpha_c,frf,E0,T0,sigma_e)
+F_complex = optimize.minimize(complex_penalty, [1,0]).x
+F_complex = F_complex[0] + 1j*F_complex[1]
 
-# F_complex = optimize.minimize(complex_penalty, [1,0]).x
-# F_complex = F_complex[0] + 1j*F_complex[1]
+harm_cav_phase = harm_cav_tuning_angle + np.pi/2 + np.angle(F_complex)
+harm_cav_voltage = -2*np.absolute(F_complex)*harm_cav_data.Rs*harm_cav_data.n_cavities*machine_data.current*np.cos(harm_cav_tuning_angle)
+k = harm_cav_voltage/machine_data.rf_voltage
+synchronous_phase = np.pi - np.arcsin(machine_data.energy_loss/machine_data.rf_voltage - k*np.sin(harm_cav_phase))
 
-# phi_h = psi_h + np.pi/2 + np.angle(F_complex)
-# VHC = -2*np.absolute(F_complex)*R*I*np.cos(psi_h)
-# k = VHC/Vrf
-# phi_s = np.pi - np.arcsin(U0/Vrf - k*np.sin(phi_h))
+print("Complex solution:\n")
+print("Harmonic voltage: %5.5f keV" % (k*machine_data.rf_voltage*1e-3))
+print("Harmonic phase: %5.5f rad/%5.5f degree" % (harm_cav_phase, harm_cav_phase/np.pi*180))
+print("Tuning angle: %5.5f rad/%5.5f degree" % (harm_cav_tuning_angle, harm_cav_tuning_angle/np.pi*180))
+print("Synchronous phase: %5.15f rad/%5.15f degree\n" % (synchronous_phase, synchronous_phase/np.pi*180))
 
-# print("Complex solution:\n")
-# print("Harmonic voltage: %5.5f keV" % (k*Vrf*1e-3))
-# print("Harmonic phase: %5.5f rad/%5.5f degree" % (phi_h, phi_h/np.pi*180))
-# print("Tuning angle: %5.5f rad/%5.5f degree" % (psi_h, psi_h/np.pi*180))
-# print("Synchronous phase: %5.15f rad/%5.15f degree\n" % (phi_s, phi_s/np.pi*180))
+time_complex,pot_complex = potential(machine_data.mom_comp,rf_freq,machine_data.energy,revolution_time,machine_data.rf_voltage,synchronous_phase,harm_cav_data.harmonic,k*machine_data.rf_voltage,harm_cav_phase)
+profile_complex = bunch_profile(time_scalar,pot_scalar,machine_data.mom_comp,machine_data.energy_spread)
+center_complex,bunch_length_complex = bunch_length_rms(time_complex,profile_complex)
 
-# time_complex,pot_complex = potential(alpha_c,frf,E0,T0,Vrf,phi_s,n,k*Vrf,phi_h)
-# profile_complex = bunch_profile(time_complex,pot_complex,alpha_c,sigma_e)
-# center_complex,bunch_length_complex = bunch_length_rms(time_complex,profile_complex)
-
-# print("Bunch length: %5.5f ps/%5.5f mm" % (bunch_length_complex*1e12,bunch_length_complex*c*1e3))
-# print("Form factor amplitude: %5.5f" % (np.absolute(F_complex)))
-# print("Form factor phase: %5.5f rad/%5.5f degree" % (np.angle(F_complex),np.angle(F_complex)/np.pi*180))
+print("Bunch length: %5.5f ps/%5.5f mm" % (bunch_length_complex*1e12,bunch_length_complex*speed_of_light*1e3))
+print("Form factor amplitude: %5.5f" % (np.absolute(F_complex)))
+print("Form factor phase: %5.5f rad/%5.5f degree" % (np.angle(F_complex),np.angle(F_complex)/np.pi*180))
 
 #%% ========================== Plot bunch profiles ==============================    
 
 plt.figure(1)
-plt.plot(time_FP*1e12,profile_FP,label='Theoretical')   
-#plt.plot(time_scalar*1e12,profile_scalar,label='Scalar')    
-#plt.plot(time_complex*1e12,profile_complex,label='Complex')
+#plt.plot(time_FP*1e12,profile_FP,label='Theoretical')   
+plt.plot(time_scalar*1e12,profile_scalar,label='Scalar')    
+plt.plot(time_complex*1e12,profile_complex,label='Complex')
 plt.legend()
 plt.xlabel('Time')
 plt.ylabel('Bunch profile [arb. units]')
